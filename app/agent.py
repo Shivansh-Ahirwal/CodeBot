@@ -1,15 +1,18 @@
 from planner import create_plan
 import json
+import os
 from llm import ask_llm
 from tools import (ShellTool,
                    ReadFileTool,
-                   WriteFileTool)
+                   WriteFileTool,
+                   ListDirTool)
 
 
 TOOLS = {
     "shell": ShellTool(),
     "read_file": ReadFileTool(),
     "write_file": WriteFileTool(),
+    "list_dir": ListDirTool(),
 }
 
 
@@ -40,6 +43,12 @@ If task is complete, respond EXACTLY like:
 {
   "final": "your final answer as a STRING"
 }
+
+You may ONLY execute shell commands that directly accomplish the current step.
+Do NOT install packages.
+Do NOT create virtual environments.
+Do NOT modify global environment.
+Only operate within the project directory.
 
 IMPORTANT:
 - The value of "final" MUST be a string.
@@ -84,13 +93,34 @@ def validate_response(parsed: dict):
     return False, "Invalid JSON structure"
 
 
+def discover_project_structure():
+
+    structure = []
+    for root, dirs, files in os.walk(".", topdown=True):
+        # Limit depth for safety
+        if root.count(os.sep) > 3:
+            continue
+
+        structure.append(f"\nDirectory: {root}")
+        for d in dirs:
+            structure.append(f"  [DIR] {d}")
+        for f in files:
+            structure.append(f"  [FILE] {f}")
+
+    return "\n".join(structure)
+
+
 # -----------------------------
 # Agent Orchestrator
 # -----------------------------
 
 def run_agent(task: str):
+    print("\n🔎 Discovering project structure...")
+
+    discovery_info = discover_project_structure()
+
     print("\n🔍 Generating plan...")
-    plan = create_plan(task)
+    plan = create_plan(task, discovery_info)
 
     if not plan:
         print("❌ Failed to generate plan.")
@@ -193,13 +223,37 @@ Execute this step:
             print("❌ Unknown tool requested")
             return None
 
+        # 🔒 Enforce read-before-write
+        if action == "write_file":
+            try:
+                data = json.loads(tool_input)
+                path = data["path"]
+            except Exception as e:
+                print("❌ Invalid write_file input format:", e)
+                return None
+
+            if path not in task_state.get("files_read", {}):
+                print("❌ Cannot write file before reading it.")
+                return None
+        if action == "shell":
+            forbidden = ["pip", "venv", "apt", "yum", "brew", "install"]
+            if any(word in tool_input for word in forbidden):
+                print("❌ Forbidden system-level command.")
+                return None
         print(f"Running tool {action} with input {tool_input}")
         execution_result = tool.run(tool_input)
 
         print("\n🔧 TOOL RESULT:")
         print(execution_result)
 
+        # 🔁 If read_file succeeded, store content in memory
+        if action == "read_file" and execution_result["returncode"] == 0:
+            task_state.setdefault("files_read", {})
+            task_state["files_read"][tool_input] = execution_result["stdout"]
+
+        # -------------------------
         # FAILURE
+        # -------------------------
         if execution_result["returncode"] != 0 or execution_result["stderr"]:
             print("❌ Tool execution failed or produced errors.")
             last_execution_successful = False
@@ -220,7 +274,9 @@ Fix the command and try again.
             retry_count += 1
             continue
 
+        # -------------------------
         # SUCCESS
+        # -------------------------
         last_execution_successful = True
 
         messages.append({"role": "assistant", "content": response})
@@ -235,3 +291,4 @@ Stdout:
         })
 
         retry_count += 1
+        continue

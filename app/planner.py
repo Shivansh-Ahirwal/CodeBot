@@ -10,8 +10,14 @@ The agent has ONLY the following tools:
 
 Break the user's task into an ordered list of executable steps
 that can be completed using ONLY these tools.
+You are planning modifications for a Django project.
 
 Rules:
+- Always read a file before modifying it.
+- Use write_file tool to modify files.
+- Do not overwrite entire project.
+- Modify only necessary parts.
+- Use shell only for manage.py commands.
 - Do NOT include human steps like "open editor".
 - Do NOT include explanations.
 - Each step must be achievable using shell or read_file.
@@ -29,6 +35,12 @@ Rules:
   ]
 }
 
+Before modifying any Django file:
+- First locate manage.py.
+- Then locate the target app directory.
+- Then confirm models.py exists.
+- Use full correct relative paths.
+
 Environment constraints:
 - Shell is /bin/sh (not bash).
 - 'bc' is NOT installed.
@@ -39,10 +51,19 @@ Environment constraints:
 """
 
 
-def create_plan(task: str):
+def create_plan(task: str, repo_structure: str):
     messages = [
         {"role": "system", "content": PLANNER_PROMPT},
-        {"role": "user", "content": task}
+        {
+            "role": "user",
+            "content": f"""
+    Repository Structure:
+    {repo_structure}
+
+    User Task:
+    {task}
+    """
+        }
     ]
 
     response = ask_llm(messages)

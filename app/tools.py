@@ -75,3 +75,13 @@ class WriteFileTool:
 
         except Exception as e:
             return {"stdout": "", "stderr": str(e), "returncode": 1}
+
+
+class ListDirTool:
+    def run(self, input_str: str):
+        try:
+            path = input_str.strip() or "."
+            items = os.listdir(path)
+            return {"stdout": "\n".join(items), "stderr": "", "returncode": 0}
+        except Exception as e:
+            return {"stdout": "", "stderr": str(e), "returncode": 1}
