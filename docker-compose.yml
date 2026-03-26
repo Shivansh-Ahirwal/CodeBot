@@ -1,12 +1,13 @@
-version: "3.9"
-
 services:
   agent:
     build: .
     container_name: local_ai_agent
+    env_file:
+      - .env
     volumes:
       - ./app:/app
     stdin_open: true
     tty: true
+    init: true
     extra_hosts:
       - "host.docker.internal:host-gateway"

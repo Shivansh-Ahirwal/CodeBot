@@ -1,8 +1,10 @@
 import requests
+import os
 
 
-OLLAMA_URL = "http://host.docker.internal:11434/api/chat"
-MODEL = "qwen2.5:7b"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434/api/chat")
+MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+REQUEST_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
 
 
 def ask_llm(messages):
@@ -13,7 +15,7 @@ def ask_llm(messages):
             "messages": messages,
             "stream": False
         },
-        timeout=120
+        timeout=REQUEST_TIMEOUT_SECONDS
     )
 
     response.raise_for_status()

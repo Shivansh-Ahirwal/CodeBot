@@ -1,6 +1,8 @@
 from planner import create_plan
 import json
 import os
+from pathlib import Path
+from typing import Any, Dict, Optional
 from llm import ask_llm
 from tools import (ShellTool,
                    ReadFileTool,
@@ -63,14 +65,14 @@ IMPORTANT:
 # JSON helpers
 # -----------------------------
 
-def parse_json_response(response: str):
+def parse_json_response(response: str) -> Optional[Dict[str, Any]]:
     try:
         return json.loads(response)
     except json.JSONDecodeError:
         return None
 
 
-def validate_response(parsed: dict):
+def validate_response(parsed: Dict[str, Any]):
     if not isinstance(parsed, dict):
         return False, "Response is not a JSON object"
 
@@ -93,18 +95,20 @@ def validate_response(parsed: dict):
     return False, "Invalid JSON structure"
 
 
-def discover_project_structure():
+def discover_project_structure() -> str:
 
     structure = []
+    ignored_dirs = {".git", "__pycache__", ".venv"}
     for root, dirs, files in os.walk(".", topdown=True):
+        dirs[:] = [d for d in dirs if d not in ignored_dirs]
         # Limit depth for safety
         if root.count(os.sep) > 3:
             continue
 
         structure.append(f"\nDirectory: {root}")
-        for d in dirs:
+        for d in sorted(dirs):
             structure.append(f"  [DIR] {d}")
-        for f in files:
+        for f in sorted(files):
             structure.append(f"  [FILE] {f}")
 
     return "\n".join(structure)
@@ -132,7 +136,8 @@ def run_agent(task: str):
 
     task_state = {
         "step_results": [],
-        "last_stdout": ""
+        "last_stdout": "",
+        "files_read": {}
     }
 
     for i, step in enumerate(plan):
@@ -154,7 +159,7 @@ def run_agent(task: str):
 # Step Executor
 # -----------------------------
 
-def execute_step(task: str, task_state: dict):
+def execute_step(task: str, task_state: Dict[str, Any]):
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -227,7 +232,7 @@ Execute this step:
         if action == "write_file":
             try:
                 data = json.loads(tool_input)
-                path = data["path"]
+                path = str(Path(data["path"]).resolve())
             except Exception as e:
                 print("❌ Invalid write_file input format:", e)
                 return None
@@ -249,7 +254,7 @@ Execute this step:
         # 🔁 If read_file succeeded, store content in memory
         if action == "read_file" and execution_result["returncode"] == 0:
             task_state.setdefault("files_read", {})
-            task_state["files_read"][tool_input] = execution_result["stdout"]
+            task_state["files_read"][str(Path(tool_input).resolve())] = execution_result["stdout"]
 
         # -------------------------
         # FAILURE

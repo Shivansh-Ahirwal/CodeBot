@@ -10,14 +10,14 @@ The agent has ONLY the following tools:
 
 Break the user's task into an ordered list of executable steps
 that can be completed using ONLY these tools.
-You are planning modifications for a Django project.
+You are planning modifications for a general Python project.
 
 Rules:
 - Always read a file before modifying it.
 - Use write_file tool to modify files.
 - Do not overwrite entire project.
 - Modify only necessary parts.
-- Use shell only for manage.py commands.
+- Use shell only when it is clearly required.
 - Do NOT include human steps like "open editor".
 - Do NOT include explanations.
 - Each step must be achievable using shell or read_file.
@@ -35,10 +35,9 @@ Rules:
   ]
 }
 
-Before modifying any Django file:
-- First locate manage.py.
-- Then locate the target app directory.
-- Then confirm models.py exists.
+Before modifying files:
+- First locate the relevant project directory.
+- Confirm the target file exists.
 - Use full correct relative paths.
 
 Environment constraints:
